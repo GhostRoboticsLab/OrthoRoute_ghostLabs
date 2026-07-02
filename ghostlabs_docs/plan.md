@@ -29,7 +29,26 @@
   **Manual acceptance still open:** full board extraction + `commit_routes()` against a live
   interactive pcbnew session (needs a human-visible KiCad; the repo quirk — Select tool
   active, nothing selected — applies).
-- **Phase 2 — next:** MLX spike on this M4.
+- **Phase 2 — DONE (2026-07-02). BACKEND DECISION: MLX. wgpu-py fallback not needed.**
+  Spike (`tools/spikes/mlx_sssp_spike.py`, M4 / MLX 0.31.2 / Metal 4.0 JIT target), measured:
+  - **Primary risk retired:** wave-per-dispatch SSSP on a 10M-node / 59.4M-edge 3D grid
+    (bigger than the 8M design target) completes in **0.63 s with a per-wave host readback**
+    (1,019 waves, 0.62 ms/wave) and **0.20 s with K=32 blind batching** (0.20 ms/wave);
+    empty-frontier dispatch costs 112 µs incl. a full 10M-thread bitmask scan. Even the
+    worst termination strategy is sub-second — lazy-eval dispatch overhead is a non-issue.
+  - **32-bit path confirmed:** non-negative IEEE floats are order-isomorphic to uint32, so
+    `atomic_fetch_min_explicit(atomic_uint)` IS float-min (no CAS loop needed at all);
+    max rel. error vs CPU Dijkstra 5e-07.
+  - **Host-driver patterns proven:** persistent device buffers mutated in-place via
+    const-cast on kernel *inputs* (CUDA-style semantics; no per-wave 40 MB copies), explicit
+    token-chaining so the lazy graph cannot reorder blind-batched mutating dispatches, and
+    scalar packing into a params buffer (the 31-buffer bind concern dissolves).
+  - **64-bit packed-key path is DEAD on MLX:** `atomic_fetch_min_explicit(atomic_ulong)`
+    is rejected by the Metal stdlib type traits under MLX's JIT compile target, and
+    `__HAVE_64B_ATOMICS__`/min-max feature macros are all undefined (Metal 4.0, macOS 26,
+    M4). The optional Apple8+ fast path (§B2) is not expressible through
+    `mx.fast.metal_kernel`; the 32-bit plan-of-record ships alone. Re-check on future MLX
+    releases only if profiling ever blames the separate parent write.
 
 ---
 
