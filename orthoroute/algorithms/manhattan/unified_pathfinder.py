@@ -499,11 +499,14 @@ from collections import defaultdict
 
 # Third-party
 import numpy as np
+# Single cupy fallback convention: cp is None when CuPy is absent (an
+# earlier duplicate import block bound cp=np here, contradicting the
+# cp=None fallback below — unified during the backend-seam refactor).
 try:
     import cupy as cp
     CUPY_AVAILABLE = True
 except ImportError:
-    cp = np  # Fallback to numpy if cupy not available
+    cp = None
     CUPY_AVAILABLE = False
 
 # Local config
@@ -513,13 +516,10 @@ from .board_analyzer import analyze_board_characteristics, BoardCharacteristics
 from .parameter_derivation import derive_routing_parameters, apply_derived_parameters, DerivedRoutingParameters
 from .pathfinder.via_kernels import ViaKernelManager, convert_via_metadata_to_gpu, ensure_gpu_array
 
-# Optional GPU
-try:
-    import cupy as cp
-    GPU_AVAILABLE = True
-except ImportError:
-    cp = None
-    GPU_AVAILABLE = False
+# Optional GPU (GPU_AVAILABLE is the historical name for "CuPy present")
+GPU_AVAILABLE = CUPY_AVAILABLE
+
+from .backends import create_gpu_solver, select_backend
 
 # Local imports
 from ...domain.models.board import Board
@@ -2181,25 +2181,32 @@ class PathFinderRouter:
 
         self.solver = SimpleDijkstra(self.graph, self.lattice)
 
-        # Add GPU solver if available
-        use_gpu_solver = self.config.use_gpu and GPU_AVAILABLE and CUDA_DIJKSTRA_AVAILABLE
+        # Backend seam: cuda -> metal -> cpu (ORTHO_BACKEND override).
+        # A GPU-init failure must be LOUD (warning-level banner reaches the
+        # console) — silent CPU downgrade previously masked backend bugs.
+        backend = select_backend(self.config.use_gpu)
+        if backend == "cuda" and not CUDA_DIJKSTRA_AVAILABLE:
+            logger.warning("[GPU-INIT] CUDADijkstra import failed — CPU fallback")
+            backend = "cpu"
 
-        # Enhanced debug logging
-        logger.info(f"[GPU-INIT] config.use_gpu={self.config.use_gpu}, GPU_AVAILABLE={GPU_AVAILABLE}, CUDA_DIJKSTRA_AVAILABLE={CUDA_DIJKSTRA_AVAILABLE}")
-        logger.info(f"[GPU-INIT] use_gpu_solver={use_gpu_solver}")
+        self.gpu_backend = backend
+        self.gpu_fastpath_failures = 0
+        logger.info(f"[GPU-INIT] config.use_gpu={self.config.use_gpu}, "
+                    f"cupy={GPU_AVAILABLE}, CUDA_DIJKSTRA_AVAILABLE={CUDA_DIJKSTRA_AVAILABLE}")
 
-        if use_gpu_solver:
+        if backend != "cpu":
             try:
-                self.solver.gpu_solver = CUDADijkstra(self.graph, self.lattice)
-                logger.info("[GPU] CUDA Near-Far Dijkstra enabled (ROI > 5K nodes) with lattice dims")
-                # Log GPU details
-                device = cp.cuda.Device()
-                mem_free, mem_total = device.mem_info
-                logger.info(f"[GPU] GPU Compute Capability: {device.compute_capability}")
-                logger.info(f"[GPU] GPU Memory: {mem_free / 1e9:.1f} GB free / {mem_total / 1e9:.1f} GB total")
+                self.solver.gpu_solver = create_gpu_solver(backend, self.graph, self.lattice)
+                logger.warning(f"[GPU-INIT] backend={backend} — GPU pathfinding enabled")
+                if backend == "cuda":
+                    device = cp.cuda.Device()
+                    mem_free, mem_total = device.mem_info
+                    logger.info(f"[GPU] GPU Compute Capability: {device.compute_capability}")
+                    logger.info(f"[GPU] GPU Memory: {mem_free / 1e9:.1f} GB free / {mem_total / 1e9:.1f} GB total")
             except Exception as e:
-                logger.warning(f"[GPU] Failed to initialize CUDA Dijkstra: {e}")
+                logger.warning(f"[GPU-INIT] backend={backend} init FAILED ({e}) — CPU fallback")
                 self.solver.gpu_solver = None
+                self.gpu_backend = "cpu"
         else:
             self.solver.gpu_solver = None
             reasons = []
@@ -2207,9 +2214,7 @@ class PathFinderRouter:
                 reasons.append("config.use_gpu=False")
             if not GPU_AVAILABLE:
                 reasons.append("CuPy not installed")
-            if not CUDA_DIJKSTRA_AVAILABLE:
-                reasons.append("CUDADijkstra import failed")
-            logger.info(f"[GPU] CPU-only mode: {', '.join(reasons)}")
+            logger.info(f"[GPU-INIT] backend=cpu ({', '.join(reasons) or 'no GPU backend available'})")
         self.roi_extractor = ROIExtractor(self.graph, use_gpu=self.config.use_gpu and GPU_AVAILABLE, lattice=self.lattice)
 
         # Identify via edges for via-specific accounting
@@ -2236,6 +2241,20 @@ class PathFinderRouter:
 
         logger.info("=== Init complete ===")
         return True
+
+    def _gpu_fastpath_eligible(self, costs) -> bool:
+        """Whether the full-graph GPU fast path can run on this backend.
+
+        CUDA requires the cost array to already live on the device (the
+        historical hasattr(costs, 'device') duck test). Metal reads host
+        numpy costs directly through unified memory. CPU never qualifies.
+        """
+        backend = getattr(self, "gpu_backend", "cpu")
+        if backend == "cuda":
+            return hasattr(costs, "device")
+        if backend == "metal":
+            return True
+        return False
 
     def _calc_bounds(self, board: Board) -> Tuple[float, float, float, float]:
         """
@@ -4469,12 +4488,8 @@ class PathFinderRouter:
             if use_portals and hasattr(self.solver, 'gpu_solver') and self.solver.gpu_solver:
                 try:
                     import numpy as np
-                    import cupy as cp
 
-                    # Check if costs are on GPU
-                    costs_on_gpu = hasattr(costs, 'device')
-
-                    if costs_on_gpu:
+                    if self._gpu_fastpath_eligible(costs):
                         logger.info(f"[GPU-SEEDS] Attempting GPU supersource routing for net {net_id}")
 
                         # Convert portal seeds to plain node arrays
@@ -4531,9 +4546,13 @@ class PathFinderRouter:
                         else:
                             logger.warning(f"[GPU-SEEDS] Empty seed arrays, skipping GPU fast path")
                 except Exception as e:
-                    logger.warning(f"[GPU-SEEDS] GPU fast path failed: {e}, skipping net (will be marked as failed)")
-                    failed_this_pass += 1
-                    continue  # Skip CPU fallback, let exclusion handle it
+                    # A GPU error is NOT a routing verdict: fall through to
+                    # the standard ROI/CPU path below (previously this
+                    # skipped CPU fallback and marked the net failed).
+                    self.gpu_fastpath_failures += 1
+                    logger.warning(f"[GPU-SEEDS] GPU fast path ERROR for net {net_id}: {e} "
+                                   f"— falling back to CPU routing "
+                                   f"(failure #{self.gpu_fastpath_failures})")
             
             # If GPU fast path succeeded, we already continued to next net above
             # Otherwise, proceed with standard ROI routing below
