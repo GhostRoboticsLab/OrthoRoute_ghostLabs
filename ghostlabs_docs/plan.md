@@ -1,8 +1,35 @@
 # ghostLabs Master Technical Plan — Apple Silicon GPU Support + KiCad 10 Compatibility
 
 **Repo:** OrthoRoute_ghostLabs (fork of bbenchoff/OrthoRoute)
-**Date:** 2026-07-02 · **Status:** PLANNING — no implementation started
+**Date:** 2026-07-02 · **Status:** IMPLEMENTING — see §0 status log
 **Dev machine:** Apple M4 (GPU family Apple9), macOS 26.5.1, Python 3.14.6 (Homebrew), KiCad 10.0.4 installed, IPC API already enabled in KiCad preferences.
+
+---
+
+## 0. Status log
+
+- **Phase 0 — DONE (2026-07-02).** `--test-via` repaired (4-layer board, full live call
+  sequence, live-state assertions) and passing CPU-only. Stripped TESTBOARD fixtures in
+  `TestBoards/testboard/` (0 segments/vias, zones kept, idempotent byte-reproducible strip via
+  `tools/make_fixtures.py`). `cli` hard-fails (exit 1, clear message) on 0-net parses.
+  pytest suite in `tests/` (sexpr, lattice, CSR, via accounting, fixtures, engine smoke) —
+  first tests in the repo. `.gitignore` no longer swallows `tests/test_*.py`.
+- **Phase 1 — DONE except manual gate (2026-07-02).** `file_parser.py` rewritten on the new
+  `sexpr.py` (all dialects; net ids normalized to names). Pad world transform verified
+  **pad-exact (≤1 µm) against pcbnew 10.0.4 on all 329+332 pads** (front/back, rot
+  0/90/180/270; back-side pads need NO extra mirror). Gate: `cli` on the stripped main board
+  parses 90 nets / 329 pads / 4 copper layers and **routes 31/36 portal-eligible nets, 0
+  overuse, 253 tracks + 134 vias, clean H/V discipline** (5 failures = the documented
+  B.Cu-escape/plane limitations). build.py KiCad-version segment dynamic (default 10.0,
+  `ORTHO_KICAD_VERSION` override, PCM metadata included); kicad-python pinned >=0.7.1,<0.8;
+  README PCM warning corrected; `from kicad import` → `kipy` fixed.
+  **Interpreter fact confirmed:** macOS KiCad 10.0.4 bundles Python **3.9.13** (Risk 4 stands;
+  Metal backend is headless-first). **Wire protocol confirmed:** kipy 0.7.1 handshake with
+  KiCad 10.0.4 works (`get_version` → 10.0.4 over `/tmp/kicad/api.sock`).
+  **Manual acceptance still open:** full board extraction + `commit_routes()` against a live
+  interactive pcbnew session (needs a human-visible KiCad; the repo quirk — Select tool
+  active, nothing selected — applies).
+- **Phase 2 — next:** MLX spike on this M4.
 
 ---
 
