@@ -126,6 +126,23 @@ _Testing / examples are the following_:
 - **PyQt6**
 - **kipy** (KiCad IPC client)
 
+### GPU acceleration
+
+OrthoRoute picks a GPU backend automatically (`ORTHO_BACKEND=cuda|metal|cpu` to force one):
+
+| Hardware | Backend | Install |
+|---|---|---|
+| NVIDIA (CUDA) | CuPy | `pip install cupy-cuda12x` |
+| Apple Silicon (M1–M5) | Metal via [MLX](https://github.com/ml-explore/mlx) | `pip install mlx` |
+| Anything else | CPU (numpy) | — |
+
+**Apple Silicon notes:** the Metal backend accelerates the headless and
+`cli` workflows run from your own Python ≥ 3.10 environment. Inside KiCad's
+plugin runtime (bundled Python 3.9 on macOS) routing stays CPU-only — run
+`python main.py cli board.kicad_pcb` or the `.ORP` headless flow from a
+venv to use the GPU. All M-series generations are supported (the kernels
+use 32-bit atomics only).
+
 ### Installation
 
 1. **Download**: Get the latest release or clone the repository

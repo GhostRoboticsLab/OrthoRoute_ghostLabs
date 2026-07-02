@@ -22,7 +22,7 @@ class OrthoRouteBuildSystem:
     def __init__(self, project_root: Path = None):
         self.project_root = project_root or Path(__file__).parent
         self.build_dir = self.project_root / "build"
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         # KiCad settings-directory version segment (Documents/KiCad/<X.Y>/...).
         # KiCad 10 is the default target; override for older installs.
         self.kicad_version = os.environ.get("ORTHO_KICAD_VERSION", "10.0")
