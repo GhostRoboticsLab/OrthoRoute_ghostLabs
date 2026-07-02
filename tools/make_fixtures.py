@@ -38,8 +38,16 @@ def strip_board(src: Path, dest: Path) -> int:
     stripped, removed = strip_top_level_nodes(text, STRIP_NODES)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(stripped, encoding="utf-8")
+    # Carry the project file (renamed to match): it holds the real design
+    # rules (min track/via sizes), which KiCad DRC and rule-aware emission
+    # read — without it DRC falls back to KiCad defaults.
+    src_pro = src.with_suffix(".kicad_pro")
+    if src_pro.exists():
+        dest.with_suffix(".kicad_pro").write_text(
+            src_pro.read_text(encoding="utf-8"), encoding="utf-8")
     print(f"{src.name} -> {dest.relative_to(Path.cwd()) if dest.is_relative_to(Path.cwd()) else dest}: "
-          f"removed {removed} segment/via nodes")
+          f"removed {removed} segment/via nodes"
+          f"{' (+project file)' if src_pro.exists() else ''}")
     return removed
 
 

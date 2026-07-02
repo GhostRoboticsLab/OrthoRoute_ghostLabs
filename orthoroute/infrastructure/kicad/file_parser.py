@@ -81,7 +81,7 @@ class KiCadFileParser:
             "layers": self._extract_layers(root),
             "components": components,
             "nets": nets,
-            "design_rules": self._extract_design_rules(root),
+            "design_rules": self._extract_design_rules(root, path),
             "tracks": self._extract_tracks(root, net_table),
             "vias": self._extract_vias(root, net_table),
         }
@@ -313,18 +313,20 @@ class KiCadFileParser:
                 for name in sorted(names)]
 
     @staticmethod
-    def _extract_design_rules(root: SExpr) -> Dict[str, Any]:
+    def _extract_design_rules(root: SExpr, path: Optional[Path] = None) -> Dict[str, Any]:
         rules = {
             "min_track_width": 0.1,
             "min_track_spacing": 0.1,
             "min_via_diameter": 0.2,
             "min_via_drill": 0.1,
+            "min_via_annular_width": 0.05,
             "default_track_width": 0.2,
             "default_clearance": 0.2,
             "default_via_diameter": 0.8,
             "default_via_drill": 0.4,
             "netclasses": {},
         }
+        # Legacy dialects kept rules in (setup ...).
         setup = child(root, "setup")
         if setup is not None:
             for key in ("min_track_width", "min_via_diameter", "min_via_drill",
@@ -333,6 +335,26 @@ class KiCadFileParser:
                 val = first_atom(child(setup, key))
                 if val is not None:
                     rules[key] = _f(val, rules[key])
+        # KiCad 6+ keeps the authoritative rules in the sibling .kicad_pro.
+        if path is not None:
+            pro = Path(path).with_suffix(".kicad_pro")
+            if pro.exists():
+                try:
+                    import json
+                    settings = json.loads(pro.read_text(encoding="utf-8"))
+                    pro_rules = (settings.get("board", {})
+                                 .get("design_settings", {}).get("rules", {}))
+                    for src_key, dst_key in (
+                            ("min_track_width", "min_track_width"),
+                            ("min_via_diameter", "min_via_diameter"),
+                            ("min_through_hole_diameter", "min_via_drill"),
+                            ("min_via_annular_width", "min_via_annular_width"),
+                            ("min_clearance", "min_track_spacing")):
+                        if src_key in pro_rules:
+                            rules[dst_key] = float(pro_rules[src_key])
+                    logger.info(f"Merged design rules from {pro.name}")
+                except (ValueError, OSError) as e:
+                    logger.warning(f"Could not read {pro.name}: {e}")
         return rules
 
     def _extract_tracks(self, root: SExpr,
@@ -382,6 +404,10 @@ class KiCadFileParser:
             thickness=1.6,
             layer_count=len(copper),
         )
+        # Stash the merged rules for rule-aware emission (see
+        # PathFinderRouter.apply_board_rules); private attr, not a
+        # dataclass field.
+        board._design_rules = board_data.get("design_rules", {})
 
         for layer_data in board_data.get("layers", []):
             board.add_layer(Layer(

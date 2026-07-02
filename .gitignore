@@ -186,3 +186,10 @@ orthoroute_debug.log.*
 # Real pytest suite is tracked (temp-file globs above must not catch it)
 !tests/
 !tests/test_*.py
+
+# Generated routing/DRC artifacts
+*-routed.kicad_pcb
+*.drc.json
+*.kicad_prl
+*.lck
+*-routed.kicad_pro

@@ -679,6 +679,7 @@ def run_cli(board_file: str, output_dir: str = ".", config_path: Optional[str] =
 
         # Create UnifiedPathFinder (same as GUI) - FORCE CPU-ONLY
         pf = UnifiedPathFinder(config=PathFinderConfig(), use_gpu=False)
+        pf.apply_board_rules(board)
         logging.info(f"[CLI] Created UnifiedPathFinder with instance_tag={pf._instance_tag}")
 
         # Use unified pipeline (SAME CALL SEQUENCE AS GUI/headless).

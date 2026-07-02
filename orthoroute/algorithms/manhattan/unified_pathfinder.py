@@ -605,6 +605,12 @@ class PathFinderConfig:
     portal_via_discount: float = 0.15  # Escape via multiplier (85% discount)
     portal_retarget_patience: int = 3  # Iters before retargeting
 
+    # Emission geometry (None -> legacy defaults; set from board design
+    # rules via PathFinderRouter.apply_board_rules)
+    track_width: Optional[float] = None      # None -> grid_pitch * 0.6
+    emit_via_diameter: float = 0.25  # hole (0.15) + 2x annular (0.05)
+    emit_via_drill: float = 0.15
+
     stagnation_patience: int = 5
     use_gpu: bool = True  # GPU algorithm fixed, validation will catch ROI construction issues
     batch_size: int = 32
@@ -2241,6 +2247,33 @@ class PathFinderRouter:
 
         logger.info("=== Init complete ===")
         return True
+
+    def apply_board_rules(self, board) -> None:
+        """Adopt the board's design rules for emitted geometry sizes.
+
+        Uses the rules the file parser merged from the .kicad_pcb setup and
+        the sibling .kicad_pro (min track/via/annular). Track width is
+        capped at half the grid pitch so adjacent-channel tracks keep at
+        least a half-pitch gap; via sizes are raised to the board minimums.
+        No effect on routing behavior — emission geometry only.
+        """
+        rules = getattr(board, "_design_rules", None)
+        if not rules:
+            return
+        pitch = self.config.grid_pitch
+        min_track = float(rules.get("min_track_width", 0.0))
+        width = max(min_track, min(pitch * 0.6, pitch / 2))
+        self.config.track_width = width
+
+        min_drill = float(rules.get("min_via_drill", 0.0))
+        min_annular = float(rules.get("min_via_annular_width", 0.0))
+        min_dia = float(rules.get("min_via_diameter", 0.0))
+        drill = max(self.config.emit_via_drill, min_drill)
+        dia = max(self.config.emit_via_diameter, min_dia, drill + 2 * min_annular)
+        self.config.emit_via_drill = drill
+        self.config.emit_via_diameter = dia
+        logger.info(f"[RULES] Emission sizes from board rules: track={width}mm "
+                    f"via={dia}/{drill}mm")
 
     def _gpu_fastpath_eligible(self, costs) -> bool:
         """Whether the full-graph GPU fast path can run on this backend.
@@ -5538,7 +5571,7 @@ class PathFinderRouter:
             'net': net,
             'layer': self.config.layer_names[layer] if layer < len(self.config.layer_names) else f"L{layer}",
             'x1': ax_mm, 'y1': ay_mm, 'x2': bx_mm, 'y2': by_mm,
-            'width': self.config.grid_pitch * 0.6,
+            'width': getattr(self.config, 'track_width', None) or self.config.grid_pitch * 0.6,
         }
 
     def precompute_all_pad_escapes(self, board: Board, nets_to_route: List = None) -> Tuple[List, List]:
@@ -5595,8 +5628,8 @@ class PathFinderRouter:
             'x': x_mm, 'y': y_mm,
             'from_layer': self.config.layer_names[from_layer] if from_layer < len(self.config.layer_names) else f"L{from_layer}",
             'to_layer': self.config.layer_names[to_layer] if to_layer < len(self.config.layer_names) else f"L{to_layer}",
-            'diameter': 0.25,  # hole (0.15) + 2×annular (0.05) = 0.25mm
-            'drill': 0.15,     # hole diameter
+            'diameter': getattr(self.config, 'emit_via_diameter', 0.25),
+            'drill': getattr(self.config, 'emit_via_drill', 0.15),
         }
 
     def emit_geometry(self, board: Board) -> Tuple[int, int]:
