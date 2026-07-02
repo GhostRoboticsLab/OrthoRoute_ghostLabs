@@ -108,12 +108,11 @@ _Testing / examples are the following_:
 
 ## Quick Start
 
-**KiCAD IS CURRENTLY BROKEN** with regards to support of IPC API plugins installed via the Content and Plugin manager. The workaround is to run this outside the Content and Plugin manager. This is documented here:
-
-- https://gitlab.com/kicad/code/kicad/-/issues/19465
-- https://forum.kicad.info/t/kicad-9-0-python-api-ipc-api/57236
-
-The fix is upcoming, but has not been released yet. **To run this, do the following:**
+> **Note on PCM installation:** the old "KiCad is broken with PCM" warning is
+> outdated — GitLab issue [#19465](https://gitlab.com/kicad/code/kicad/-/issues/19465)
+> was a Windows load failure fixed before KiCad 9.0.0 final, and PCM formally
+> supports IPC plugins (`runtime: "ipc"`) since KiCad 9.0.1. Running from a
+> repo clone remains the recommended way to get the full GUI:
 
 - Clone the OrthoRoute repo
 - in the OrthoRoute/ folder, run `pip install -r requirements.txt`
@@ -122,7 +121,7 @@ The fix is upcoming, but has not been released yet. **To run this, do the follow
 
 
 ### Prerequisites
-- **KiCad 9.0+** with IPC API support
+- **KiCad 9.0.1+ or 10.x** with the IPC API enabled (Preferences → Plugins → Enable Python API)
 - **Python 3.12+**
 - **PyQt6**
 - **kipy** (KiCad IPC client)
@@ -189,7 +188,7 @@ Plus graph structure, node ownership, buffers: +20-25 GB
 ## Usage
 
 ### GUI Mode (Recommended)
-1. **Open your PCB** in KiCad 9.0+ with IPC API enabled
+1. **Open your PCB** in KiCad 9.0.1+ or 10.x with IPC API enabled
 2. **Launch OrthoRoute Plugin** via the Plugin Manager
 3. **Route your nets** - OrthoRoute will automatically:
    - Extract board data via KiCad IPC API

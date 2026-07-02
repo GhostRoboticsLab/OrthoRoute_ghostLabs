@@ -23,6 +23,9 @@ class OrthoRouteBuildSystem:
         self.project_root = project_root or Path(__file__).parent
         self.build_dir = self.project_root / "build"
         self.version = "1.0.0"
+        # KiCad settings-directory version segment (Documents/KiCad/<X.Y>/...).
+        # KiCad 10 is the default target; override for older installs.
+        self.kicad_version = os.environ.get("ORTHO_KICAD_VERSION", "10.0")
         self.plugin_identifier = "com.github.bbenchoff.orthoroute"
         self.plugin_name = "OrthoRoute"
 
@@ -127,19 +130,19 @@ Before installing this plugin, you MUST enable the IPC API in KiCad:
 
 ### Windows
 1. Extract the `{self.plugin_identifier}` folder from this ZIP
-2. Copy it to: `C:\\Users\\<your-username>\\Documents\\KiCad\\9.0\\plugins\\`
+2. Copy it to: `C:\\Users\\<your-username>\\Documents\\KiCad\\{self.kicad_version}\\plugins\\`
 3. Restart KiCad
 4. The OrthoRoute button should appear in the PCB Editor toolbar
 
 ### macOS
 1. Extract the `{self.plugin_identifier}` folder from this ZIP
-2. Copy it to: `/Users/<your-username>/Documents/KiCad/9.0/plugins/`
+2. Copy it to: `/Users/<your-username>/Documents/KiCad/{self.kicad_version}/plugins/`
 3. Restart KiCad
 4. The OrthoRoute button should appear in the PCB Editor toolbar
 
 ### Linux
 1. Extract the `{self.plugin_identifier}` folder from this ZIP
-2. Copy it to: `~/.local/share/KiCad/9.0/plugins/`
+2. Copy it to: `~/.local/share/KiCad/{self.kicad_version}/plugins/`
 3. Restart KiCad
 4. The OrthoRoute button should appear in the PCB Editor toolbar
 
@@ -149,13 +152,13 @@ KiCad will automatically create a virtual environment and install dependencies
 from requirements.txt when you first run the plugin.
 
 The virtual environment is located at:
-- Windows: `C:\\Users\\<username>\\AppData\\Local\\KiCad\\9.0\\python-environments\\{self.plugin_identifier}\\`
-- macOS: `/Users/<username>/Library/Caches/KiCad/9.0/python-environments/{self.plugin_identifier}/`
-- Linux: `~/.cache/KiCad/9.0/python-environments/{self.plugin_identifier}/`
+- Windows: `C:\\Users\\<username>\\AppData\\Local\\KiCad\\{self.kicad_version}\\python-environments\\{self.plugin_identifier}\\`
+- macOS: `/Users/<username>/Library/Caches/KiCad/{self.kicad_version}/python-environments/{self.plugin_identifier}/`
+- Linux: `~/.cache/KiCad/{self.kicad_version}/python-environments/{self.plugin_identifier}/`
 
 ## Requirements
 
-- KiCad 9.0 or later
+- KiCad {self.kicad_version} or later
 - Python 3.10 or later (usually included with KiCad)
 - Dependencies listed in requirements.txt (auto-installed by KiCad)
 
@@ -165,16 +168,16 @@ The virtual environment is located at:
 - Verify IPC API is enabled (Preferences → Plugins)
 - Check that the folder name matches: `{self.plugin_identifier}`
 - Restart KiCad after installation
-- Check KiCad logs for errors: `Documents/KiCad/9.0/logs/`
+- Check KiCad logs for errors: `Documents/KiCad/{self.kicad_version}/logs/`
 
 ### Dependencies not installing
 - Check your internet connection
-- Look at: `Documents/KiCad/9.0/logs/api.log` for installation errors
+- Look at: `Documents/KiCad/{self.kicad_version}/logs/api.log` for installation errors
 - Manually activate the venv and install: `pip install -r requirements.txt`
 
 ### Can't find plugins directory
 - Create the directory if it doesn't exist
-- The path varies by KiCad version (use 9.0, 9.1, etc.)
+- The path varies by KiCad version (use 10.0, 9.0, etc.)
 
 ## More Information
 
@@ -262,9 +265,9 @@ Version: {self.version}
         print("\n2. Install the plugin:")
         print(f"   - Extract the ZIP file")
         print(f"   - Copy the '{self.plugin_identifier}' folder to your plugins directory:")
-        print(f"     * Windows: C:\\Users\\<username>\\Documents\\KiCad\\9.0\\plugins\\")
-        print(f"     * macOS: /Users/<username>/Documents/KiCad/9.0/plugins/")
-        print(f"     * Linux: ~/.local/share/KiCad/9.0/plugins/")
+        print(f"     * Windows: C:\\Users\\<username>\\Documents\\KiCad\\{self.kicad_version}\\plugins\\")
+        print(f"     * macOS: /Users/<username>/Documents/KiCad/{self.kicad_version}/plugins/")
+        print(f"     * Linux: ~/.local/share/KiCad/{self.kicad_version}/plugins/")
         print("\n3. Restart KiCad")
         print("\n4. Look for the OrthoRoute button in PCB Editor toolbar")
         print("\n" + "="*70)
@@ -310,7 +313,7 @@ Version: {self.version}
                 {
                     "version": self.version,
                     "status": "stable",
-                    "kicad_version": "9.0",
+                    "kicad_version": self.kicad_version,
                     "platforms": ["windows", "macos", "linux"],
                     "runtime": "swig"
                 }
