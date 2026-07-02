@@ -4540,9 +4540,13 @@ class PathFinderRouter:
                                 routed_this_pass += 1
                                 continue  # Skip ROI extraction and CPU routing
                             else:
-                                logger.info(f"[GPU-SEEDS] No path found, skipping net (will be marked as failed)")
-                                failed_this_pass += 1
-                                continue  # Skip CPU fallback, let exclusion handle it
+                                # The owner-aware bitmap is a conservative
+                                # filter: a bitmap-constrained no-path is not
+                                # an authoritative verdict, so defer to the
+                                # cost-based ROI/CPU search below instead of
+                                # failing the net outright.
+                                logger.info(f"[GPU-SEEDS] No path under owner bitmap for net {net_id} "
+                                            f"— falling through to ROI/CPU routing")
                         else:
                             logger.warning(f"[GPU-SEEDS] Empty seed arrays, skipping GPU fast path")
                 except Exception as e:
