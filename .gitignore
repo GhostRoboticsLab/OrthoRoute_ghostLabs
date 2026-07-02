@@ -183,9 +183,12 @@ orthoroute.log.*
 orthoroute_debug.log
 orthoroute_debug.log.*
 
-# Real pytest suite is tracked (temp-file globs above must not catch it)
+# Real pytest suite is tracked (temp-file globs above must not catch it).
+# Negate the whole suite, not just test_*.py — conftest.py holds the shared
+# fixtures/factories the tests import, so a test_* only re-include silently
+# drops it and breaks collection on a fresh clone.
 !tests/
-!tests/test_*.py
+!tests/*.py
 
 # Generated routing/DRC artifacts
 *-routed.kicad_pcb
