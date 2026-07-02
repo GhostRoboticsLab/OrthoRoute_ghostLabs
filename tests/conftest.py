@@ -14,28 +14,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-FIXTURE_DIR = REPO_ROOT / "TestBoards" / "testboard"
-
-
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
     return REPO_ROOT
-
-
-@pytest.fixture(scope="session")
-def stripped_main_board() -> Path:
-    path = FIXTURE_DIR / "testboard-stripped.kicad_pcb"
-    if not path.exists():
-        pytest.skip("stripped TESTBOARD fixture missing (run tools/make_fixtures.py)")
-    return path
-
-
-@pytest.fixture(scope="session")
-def stripped_mini_board() -> Path:
-    path = FIXTURE_DIR / "testboard-mini-stripped.kicad_pcb"
-    if not path.exists():
-        pytest.skip("stripped TESTBOARD mini fixture missing (run tools/make_fixtures.py)")
-    return path
 
 
 def make_two_pad_board(layer_count: int = 4):

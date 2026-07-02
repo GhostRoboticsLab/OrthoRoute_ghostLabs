@@ -271,7 +271,7 @@ class KiCadFileParser:
         KiCad stores pad offsets in the footprint frame, ALREADY in the
         flipped frame for back-side footprints (no extra mirror), and the
         footprint angle is CCW-positive in KiCad's Y-down board frame.
-        Verified pad-exact (<=1um) against pcbnew 10.0.4 on the TESTBOARD
+        Verified pad-exact (<=1um) against pcbnew 10.0.4 on real KiCad 10
         boards (front/back, rot 0/90/180/270).
         """
         del back  # placement is identical for both sides

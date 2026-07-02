@@ -30,7 +30,7 @@ from orthoroute.algorithms.manhattan.unified_pathfinder import (  # noqa: E402
 from orthoroute.infrastructure.kicad.board_writer import write_routed_board  # noqa: E402
 from orthoroute.infrastructure.kicad.file_parser import KiCadFileParser  # noqa: E402
 
-DEFAULT_BOARD = REPO_ROOT / "TestBoards" / "testboard" / "testboard-stripped.kicad_pcb"
+DEFAULT_BOARD = REPO_ROOT / "TestBoards" / "TestBackplane.kicad_pcb"
 KICAD_CLI_CANDIDATES = (
     "/Applications/KiCad.app/Contents/MacOS/kicad-cli",
     "kicad-cli",
