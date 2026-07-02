@@ -49,6 +49,35 @@
     M4). The optional Apple8+ fast path (§B2) is not expressible through
     `mx.fast.metal_kernel`; the 32-bit plan-of-record ships alone. Re-check on future MLX
     releases only if profiling ever blames the separate parent write.
+- **Phase 3 — DONE (2026-07-02).** Backend seam `backends.py` (`ORTHO_BACKEND=cuda|metal|cpu`,
+  forced-unavailable fails loudly). KernelProvider surface reduced to the **2 solver methods**
+  — the via-kernel call sites already carry complete numpy fallbacks, which ARE the non-CUDA
+  implementation, so no Metal via manager is needed (ArrayModule likewise unnecessary: under
+  Metal the host math stays numpy; MLX unified memory makes the ~175 `hasattr(x,'get')` sites
+  inert). Hazard fixes: fast-path exceptions now fall back to CPU with a `gpu_fastpath_failures`
+  counter (the old code did `import cupy` inside the try — on any non-CUDA machine EVERY net
+  would have failed with no CPU attempt); loud `[GPU-INIT]` banner; unified cp=None fallback.
+  **Gate: golden CPU digest identical pre/post refactor** (sha256 `093449c0…`,
+  `tools/golden_route.py`, deterministic across runs) + fault-injection test.
+- **Phase 4 — DONE (2026-07-02).** `pathfinder/metal_dijkstra.py` implements both solver
+  methods. Design deltas vs CUDA (all spike-validated): 32-bit uint-ordered atomic float-min
+  (no CAS loop), **race-free parent recovery in a post-convergence pass** (strictly positive
+  costs ⇒ acyclic; replaces CUDA's 64-bit packed-key machinery), K=8 batched frontier-empty
+  readback, buffers padded ≥8 elements (MLX puts ≤7-element inputs in constant address space
+  where the device atomic cast cannot compile). Additional behavior fix found by the new §C2
+  oracle: an owner-bitmap-constrained GPU "no path" now defers to cost-based ROI/CPU search
+  instead of failing the net. **Gates, all green:** SSSP/multi-source/parent-tree/bitmap
+  oracles vs CPU Dijkstra; congestion stressor (10 crossing nets) converges 0-overuse on both
+  backends with comparable iterations; TESTBOARD fixture on Metal: **36/36 nets, 0 overuse,
+  6 iterations, oracle OK**; **TestBackplane (1,088 nets/18 Cu layers/446k nodes/14.3M edges):
+  512/512 portal-eligible nets CONVERGED to 0 overuse in 63 iterations, 22 min on the M4,
+  §C2 oracle OK, 0 GPU faults** (barrel residue 275 — inside upstream's documented 300–500
+  class). §C2 DRC oracle implemented (`board_writer.py` headless write-back + `kicad-cli pcb
+  drc`): rule-aware emission (sizes from the sibling `.kicad_pro`) eliminated all 378
+  via-size violations; remaining classes measured & attributed (≈600 plane-blind zone
+  conflicts, 24 barrel shorts, 24 edge-clearance, 129 unconnected = TH-only nets by design).
+- **Phase 5 — validation recorded above; release prep:** v1.1.0 (CHANGELOG.md, README Apple
+  Silicon section, plugin zip builds as 1.1.0). Local commits only, tagged locally.
 
 ---
 

@@ -473,7 +473,9 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='OrthoRoute Build System')
-    parser.add_argument('--version', default='1.0.0', help='Version number')
+    # Default must track the class version, or the CLI silently overrides it
+    parser.add_argument('--version', default=OrthoRouteBuildSystem().version,
+                        help='Version number')
     parser.add_argument('--clean', action='store_true', help='Clean build directory only')
     parser.add_argument('--pcm', action='store_true', help='Build PCM package (SWIG) instead of manual IPC package')
 
