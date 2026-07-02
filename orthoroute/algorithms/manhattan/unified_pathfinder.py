@@ -2098,8 +2098,15 @@ class PathFinderRouter:
             has_enough_layers = False
 
         if not existing_names or not has_enough_layers:
+            # board.layers may hold Layer domain objects or plain strings;
+            # keep only copper names (file order matches z-order: F.Cu,
+            # inners ascending, B.Cu last in every KiCad dialect).
+            board_layer_names = [getattr(l, "name", l)
+                                 for l in (getattr(board, "layers", None) or [])]
+            copper_names = [n for n in board_layer_names
+                            if isinstance(n, str) and n.endswith(".Cu")]
             self.config.layer_names = (
-                getattr(board, "layers", None)
+                copper_names
                 or (["F.Cu"] + [f"In{i}.Cu" for i in range(1, self.config.layer_count-1)] + ["B.Cu"])
             )
 
